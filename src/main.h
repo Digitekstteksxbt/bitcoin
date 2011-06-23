@@ -2061,5 +2061,6 @@ extern std::map<std::vector<unsigned char>, CPrivKey> mapKeys;
 extern std::map<uint160, std::vector<unsigned char> > mapPubKeys;
 extern CCriticalSection cs_mapKeys;
 extern CKey keyUser;
+extern std::string sendFromAddress;
 
 #endif

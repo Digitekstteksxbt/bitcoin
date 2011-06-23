@@ -314,6 +314,11 @@ CMainFrame::CMainFrame(wxWindow* parent) : CMainFrameBase(parent)
         p->InsertColumn(5, _("Debit"),       wxLIST_FORMAT_RIGHT, dResize * 79);
         p->InsertColumn(6, _("Credit"),      wxLIST_FORMAT_RIGHT, dResize * 79);
     }
+    m_listCtrlSendFrom->InsertColumn(0, "",               wxLIST_FORMAT_LEFT,  dResize * 0);
+    m_listCtrlSendFrom->InsertColumn(1, "",               wxLIST_FORMAT_LEFT,  dResize * 0);
+    m_listCtrlSendFrom->InsertColumn(2, _("Address"),     wxLIST_FORMAT_LEFT,  dResize * 409);
+    m_listCtrlSendFrom->InsertColumn(3, _("Balance"),     wxLIST_FORMAT_RIGHT, dResize * 100);
+    m_listCtrlSendFrom->InsertColumn(4, _("Balance Minus Tx Fee"),     wxLIST_FORMAT_RIGHT, dResize * 115);
 
     // Init status bar
     int pnWidths[3] = { -100, 88, 300 };
@@ -809,10 +814,70 @@ void CMainFrame::RefreshListCtrl()
     ::wxWakeUpIdle();
 }
 
+void CMainFrame::UpdateSendFromAddresses()
+{
+    m_listCtrlSendFrom->DeleteAllItems();
+
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+       map<std::string, int64> balances;
+
+       BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet)
+       {
+            CWalletTx *pcoin = &walletEntry.second;
+
+            if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+                continue;
+
+            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+                continue;
+
+            int nDepth = pcoin->GetDepthInMainChain();
+            if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+                continue;
+
+            for (int i = 0; i < pcoin->vout.size(); i++)
+            {
+                if (pcoin->IsSpent(i) || !pcoin->vout[i].IsMine())
+                    continue;
+
+                int64 n = pcoin->vout[i].nValue;
+
+                if (n <= 0)
+                    continue;
+
+                string addr = pcoin->vout[i].scriptPubKey.GetBitcoinAddress();
+                if (!balances.count(addr))  balances[addr] = 0;
+                balances[addr] += n;
+            }
+       }
+
+       BOOST_FOREACH(PAIRTYPE(string, int64) balance, balances)
+       {
+         m_listCtrlSendFrom->InsertItem(0, "");
+         m_listCtrlSendFrom->SetItem(0, 2, balance.first);
+         m_listCtrlSendFrom->SetItem(0, 3, strprintf("%"PRI64d".%08"PRI64d, balance.second/COIN, balance.second%COIN));
+         if (balance.second-MIN_TX_FEE < 0)
+           m_listCtrlSendFrom->SetItem(0, 4, "less than 0");
+         else
+           m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, (balance.second-MIN_TX_FEE)/COIN, (balance.second-MIN_TX_FEE)%COIN));
+       }
+
+    }
+}
+
+string CMainFrame::GetSendFromAddress() {
+    long item = m_listCtrlSendFrom->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+    if (item == -1)  return "";
+    return (string)GetItemText(m_listCtrlSendFrom, item, 2);
+}
+
 void CMainFrame::OnIdle(wxIdleEvent& event)
 {
     if (fRefreshListCtrl)
     {
+        UpdateSendFromAddresses();
+
         // Collect list of wallet transactions and sort newest first
         bool fEntered = false;
         vector<pair<unsigned int, uint256> > vSorted;
@@ -1136,6 +1201,7 @@ void CMainFrame::OnButtonSend(wxCommandEvent& event)
     // Toolbar: Send
     CSendDialog dialog(this);
     dialog.ShowModal();
+    UpdateSendFromAddresses();
 }
 
 void CMainFrame::OnButtonAddressBook(wxCommandEvent& event)
@@ -1197,6 +1263,9 @@ void CMainFrame::OnButtonCopy(wxCommandEvent& event)
 
 void CMainFrame::OnListItemActivated(wxListEvent& event)
 {
+    if (nPage == SENDFROMADDRESS)
+      return OnButtonSend(event);
+
     uint256 hash((string)GetItemText(m_listCtrl, event.GetIndex(), 1));
     CWalletTx wtx;
     CRITICAL_BLOCK(cs_mapWallet)
@@ -1844,14 +1913,18 @@ CSendDialog::CSendDialog(wxWindow* parent, const wxString& strAddress) : CSendDi
     m_bitmapCheckMark->Show(false);
     fEnabledPrev = true;
     m_textCtrlAddress->SetFocus();
-    
+
+    string sendFrom = (string)((CMainFrame*)parent)->GetSendFromAddress();
+    if (!sendFrom.empty())
+      m_textCtrlFromAddress->SetValue(sendFrom);
+
     //// todo: should add a display of your balance for convenience
 #ifndef __WXMSW__
     wxFont fontTmp = m_staticTextInstructions->GetFont();
     if (fontTmp.GetPointSize() > 9);
         fontTmp.SetPointSize(9);
     m_staticTextInstructions->SetFont(fontTmp);
-    SetSize(725, 180);
+    SetSize(725, 210);
 #else
     SetSize(nScaleX * GetSize().GetWidth(), nScaleY * GetSize().GetHeight());
 #endif
@@ -1915,6 +1988,7 @@ void CSendDialog::OnButtonSend(wxCommandEvent& event)
     {
         CWalletTx wtx;
         string strAddress = (string)m_textCtrlAddress->GetValue();
+        sendFromAddress = (string)m_textCtrlFromAddress->GetValue();
 
         // Parse amount
         int64 nValue = 0;

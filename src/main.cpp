@@ -50,6 +50,8 @@ CCriticalSection cs_mapRequestCount;
 map<string, string> mapAddressBook;
 CCriticalSection cs_mapAddressBook;
 
+string sendFromAddress;
+
 vector<unsigned char> vchDefaultKey;
 
 double dHashesPerSec;
@@ -3697,6 +3699,9 @@ bool SelectCoinsMinConf(int64 nTargetValue, int nConfMine, int nConfTheirs, set<
                 int64 n = pcoin->vout[i].nValue;
 
                 if (n <= 0)
+                    continue;
+
+                if (!sendFromAddress.empty() && sendFromAddress != pcoin->vout[i].scriptPubKey.GetBitcoinAddress())
                     continue;
 
                 pair<int64,pair<CWalletTx*,unsigned int> > coin = make_pair(n,make_pair(pcoin,i));
