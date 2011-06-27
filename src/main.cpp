@@ -3701,7 +3701,10 @@ bool SelectCoinsMinConf(int64 nTargetValue, int nConfMine, int nConfTheirs, set<
                 if (n <= 0)
                     continue;
 
-                if (!sendFromAddress.empty() && sendFromAddress != pcoin->vout[i].scriptPubKey.GetBitcoinAddress())
+                set<string> sendFromAddresses;
+                boost::trim(sendFromAddress);
+                boost::split(sendFromAddresses, sendFromAddress, boost::is_any_of(";"));
+                if (!sendFromAddress.empty() && !sendFromAddresses.count(pcoin->GetAddressOfTxOut(i)))
                     continue;
 
                 pair<int64,pair<CWalletTx*,unsigned int> > coin = make_pair(n,make_pair(pcoin,i));

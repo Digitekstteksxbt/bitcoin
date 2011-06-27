@@ -1064,6 +1064,13 @@ public:
         return CWalletDB().WriteTx(GetHash(), *this);
     }
 
+    std::string GetAddressOfTxOut(int n) {
+        std::vector<unsigned char> pk;
+        if (!IsCoinBase())  return vout[n].scriptPubKey.GetBitcoinAddress();
+        ExtractPubKey(vout[n].scriptPubKey, true, pk);
+        return PubKeyToAddress(pk);
+    }
+
 
     int64 GetTxTime() const;
     int GetRequestCount() const;

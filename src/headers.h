@@ -66,6 +66,7 @@
 #include <boost/tuple/tuple_io.hpp>
 #include <boost/array.hpp>
 #include <boost/bind.hpp>
+#include <boost/lambda/lambda.hpp>
 #include <boost/function.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>

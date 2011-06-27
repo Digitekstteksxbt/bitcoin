@@ -316,9 +316,10 @@ CMainFrame::CMainFrame(wxWindow* parent) : CMainFrameBase(parent)
     }
     m_listCtrlSendFrom->InsertColumn(0, "",               wxLIST_FORMAT_LEFT,  dResize * 0);
     m_listCtrlSendFrom->InsertColumn(1, "",               wxLIST_FORMAT_LEFT,  dResize * 0);
-    m_listCtrlSendFrom->InsertColumn(2, _("Address"),     wxLIST_FORMAT_LEFT,  dResize * 409);
-    m_listCtrlSendFrom->InsertColumn(3, _("Balance"),     wxLIST_FORMAT_RIGHT, dResize * 100);
-    m_listCtrlSendFrom->InsertColumn(4, _("Balance Minus Tx Fee"),     wxLIST_FORMAT_RIGHT, dResize * 115);
+    m_listCtrlSendFrom->InsertColumn(2, _("Address"),     wxLIST_FORMAT_LEFT,  dResize * 239);
+    m_listCtrlSendFrom->InsertColumn(3, _("Label"),     wxLIST_FORMAT_RIGHT, dResize * 170);
+    m_listCtrlSendFrom->InsertColumn(4, _("Balance"),     wxLIST_FORMAT_RIGHT, dResize * 100);
+    m_listCtrlSendFrom->InsertColumn(5, _("Balance Minus Tx Fee"),     wxLIST_FORMAT_RIGHT, dResize * 115);
 
     // Init status bar
     int pnWidths[3] = { -100, 88, 300 };
@@ -814,62 +815,164 @@ void CMainFrame::RefreshListCtrl()
     ::wxWakeUpIdle();
 }
 
+
 void CMainFrame::UpdateSendFromAddresses()
 {
-    m_listCtrlSendFrom->DeleteAllItems();
+  m_listCtrlSendFrom->DeleteAllItems();
 
-    CRITICAL_BLOCK(cs_mapWallet)
-    {
-       map<std::string, int64> balances;
+  CRITICAL_BLOCK(cs_mapWallet)
+  {
+    map<string, int64> balances;
 
-       BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet)
-       {
-            CWalletTx *pcoin = &walletEntry.second;
+    BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet) {
+      CWalletTx *pcoin = &walletEntry.second;
 
-            if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
-                continue;
+      if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+        continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
-                continue;
+      if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+        continue;
 
-            int nDepth = pcoin->GetDepthInMainChain();
-            if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
-                continue;
+      int nDepth = pcoin->GetDepthInMainChain();
+      if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+        continue;
 
-            for (int i = 0; i < pcoin->vout.size(); i++)
-            {
-                if (pcoin->IsSpent(i) || !pcoin->vout[i].IsMine())
-                    continue;
+      for (int i = 0; i < pcoin->vout.size(); i++)
+      {
+        if (!pcoin->vout[i].IsMine())
+          continue;
 
-                int64 n = pcoin->vout[i].nValue;
+        int64 n = pcoin->IsSpent(i) ? 0 : pcoin->vout[i].nValue;
 
-                if (n <= 0)
-                    continue;
-
-                string addr = pcoin->vout[i].scriptPubKey.GetBitcoinAddress();
-                if (!balances.count(addr))  balances[addr] = 0;
-                balances[addr] += n;
-            }
-       }
-
-       BOOST_FOREACH(PAIRTYPE(string, int64) balance, balances)
-       {
-         m_listCtrlSendFrom->InsertItem(0, "");
-         m_listCtrlSendFrom->SetItem(0, 2, balance.first);
-         m_listCtrlSendFrom->SetItem(0, 3, strprintf("%"PRI64d".%08"PRI64d, balance.second/COIN, balance.second%COIN));
-         if (balance.second-MIN_TX_FEE < 0)
-           m_listCtrlSendFrom->SetItem(0, 4, "less than 0");
-         else
-           m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, (balance.second-MIN_TX_FEE)/COIN, (balance.second-MIN_TX_FEE)%COIN));
-       }
-
+        string addr = pcoin->GetAddressOfTxOut(i);
+        if (!balances.count(addr))  balances[addr] = 0;
+        balances[addr] += n;
+      }
     }
+
+    set< set<string> > groupings = GetAddressGroupings();
+    set< set<string> > nonZeroGroupings;
+
+    BOOST_FOREACH(set<string> addresses, groupings)
+      BOOST_FOREACH(string address, addresses)
+        if (balances[address] > 0)
+          nonZeroGroupings.insert(addresses);
+
+    BOOST_FOREACH(set<string> addresses, nonZeroGroupings) {
+      vector<string> sortedAddresses(addresses.begin(), addresses.end());
+      sort(sortedAddresses.begin(), sortedAddresses.end(), boost::lambda::var(balances)[boost::lambda::_1] > boost::lambda::var(balances)[boost::lambda::_2]);
+      reverse(sortedAddresses.begin(), sortedAddresses.end());
+
+      BOOST_FOREACH(string address, sortedAddresses) {
+        int64 balance = balances[address];
+
+        m_listCtrlSendFrom->InsertItem(0, "");
+        m_listCtrlSendFrom->SetItem(0, 2, address);
+
+        CRITICAL_BLOCK(cs_mapAddressBook)
+          if (mapAddressBook.find(address) != mapAddressBook.end())
+            m_listCtrlSendFrom->SetItem(0, 3, mapAddressBook.find(address)->second);
+
+        if (balance > 0) {
+          m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, balance/COIN, balance%COIN));
+          if (balance-MIN_TX_FEE < 0)
+            m_listCtrlSendFrom->SetItem(0, 5, "less than 0");
+          else
+            m_listCtrlSendFrom->SetItem(0, 5, strprintf("%"PRI64d".%08"PRI64d, (balance-MIN_TX_FEE)/COIN, (balance-MIN_TX_FEE)%COIN));
+        } else {
+          m_listCtrlSendFrom->SetItem(0, 4, "-");
+          m_listCtrlSendFrom->SetItem(0, 5, "-");
+        }
+
+      }
+      m_listCtrlSendFrom->InsertItem(0, "");
+    }
+  }
+}
+
+set< set<string> > CMainFrame::GetAddressGroupings()
+{
+  map< string, set<string> > groupings;
+
+  BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet) {
+    CWalletTx *pcoin = &walletEntry.second;
+
+    if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+      continue;
+
+    if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+      continue;
+
+    int nDepth = pcoin->GetDepthInMainChain();
+    if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+      continue;
+
+    if (pcoin->vin.size() > 0 && pcoin->vin[0].IsMine()) {
+      // group all in addrs with eachother
+      BOOST_FOREACH(CTxIn txin1, pcoin->vin) {
+        BOOST_FOREACH(CTxIn txin2, pcoin->vin) {
+          CWalletTx tx1 = mapWallet[txin1.prevout.hash];
+          CWalletTx tx2 = mapWallet[txin2.prevout.hash];
+          string addr1 = tx1.GetAddressOfTxOut(txin1.prevout.n);
+          string addr2 = tx2.GetAddressOfTxOut(txin2.prevout.n);
+          groupings[addr1].insert(addr2);
+        }
+      }
+
+      // group change with first in addr, only need to group w first cuz all in addrs already grouped
+      BOOST_FOREACH(CTxOut txout, pcoin->vout) {
+        if (txout.IsChange()) {
+          CWalletTx tx = mapWallet[pcoin->vin[0].prevout.hash];
+          string addr = tx.GetAddressOfTxOut(pcoin->vin[0].prevout.n);
+          groupings[addr].insert(txout.scriptPubKey.GetBitcoinAddress());
+        }
+      }
+    }
+
+    // group lone addrs by themselves
+    for (int i = 0; i < pcoin->vout.size(); i++) {
+      if (!pcoin->vout[i].IsMine())  continue;
+      string addr = pcoin->GetAddressOfTxOut(i);
+      groupings[addr].insert(addr);
+    }
+  }
+
+  set<string> addresses;
+  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
+    addresses.insert(grouping.first);
+
+  BOOST_FOREACH(string address, addresses) {
+    set<string> expanded;
+    expanded = ExpandGrouping(groupings, address, expanded);
+    BOOST_FOREACH(string addr, expanded)  groupings[addr] = expanded;
+  }
+
+  set< set<string> > uniqueGroupings;
+  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
+    uniqueGroupings.insert(grouping.second);
+  
+  return uniqueGroupings;
+}
+
+set<string> CMainFrame::ExpandGrouping(map< string, set<string> > &groupings, string address, set<string> &expanded)
+{
+  if (expanded.count(address))  return expanded;
+  expanded.insert(address);
+  BOOST_FOREACH(string expandAddress, groupings[address])
+    ExpandGrouping(groupings, expandAddress, expanded);
+  return expanded;
 }
 
 string CMainFrame::GetSendFromAddress() {
-    long item = m_listCtrlSendFrom->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-    if (item == -1)  return "";
-    return (string)GetItemText(m_listCtrlSendFrom, item, 2);
+  string s;
+  long item = -1;
+  loop { 
+    item = m_listCtrlSendFrom->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+    if (item == -1)  return s;
+    string text = (string)GetItemText(m_listCtrlSendFrom, item, 2);
+    if (!text.empty())
+      s += (!s.empty() ? ";" : "") + text;
+  }
 }
 
 void CMainFrame::OnIdle(wxIdleEvent& event)
