@@ -52,16 +52,17 @@
 #define wxID_BUTTONPASTE 1010
 #define wxID_BUTTONADDRESSBOOK 1011
 #define wxID_TEXTCTRLAMOUNT 1012
-#define wxID_CHOICETRANSFERTYPE 1013
-#define wxID_LISTCTRL 1014
-#define wxID_BUTTONRENAME 1015
-#define wxID_PANELSENDING 1016
-#define wxID_LISTCTRLSENDING 1017
-#define wxID_PANELRECEIVING 1018
-#define wxID_LISTCTRLRECEIVING 1019
-#define wxID_BUTTONDELETE 1020
-#define wxID_BUTTONEDIT 1021
-#define wxID_TEXTCTRL 1022
+#define wxID_TEXTCTRLSENDFROMADDRESS 1013
+#define wxID_CHOICETRANSFERTYPE 1014
+#define wxID_LISTCTRL 1015
+#define wxID_BUTTONRENAME 1016
+#define wxID_PANELSENDING 1017
+#define wxID_LISTCTRLSENDING 1018
+#define wxID_PANELRECEIVING 1019
+#define wxID_LISTCTRLRECEIVING 1020
+#define wxID_BUTTONDELETE 1021
+#define wxID_BUTTONEDIT 1022
+#define wxID_TEXTCTRL 1023
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class CMainFrameBase
@@ -89,6 +90,7 @@ class CMainFrameBase : public wxFrame
 		wxPanel* m_panel91;
 		wxPanel* m_panel92;
 		wxPanel* m_panel93;
+		wxPanel* m_panel10;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
@@ -121,6 +123,7 @@ class CMainFrameBase : public wxFrame
 		wxListCtrl* m_listCtrlSentReceived;
 		wxListCtrl* m_listCtrlSent;
 		wxListCtrl* m_listCtrlReceived;
+		wxListCtrl* m_listCtrlSendFrom;
 		
 		CMainFrameBase( wxWindow* parent, wxWindowID id = wxID_MAINFRAME, const wxString& title = _("Bitcoin"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 723,484 ), long style = wxDEFAULT_FRAME_STYLE|wxRESIZE_BORDER|wxTAB_TRAVERSAL );
 		~CMainFrameBase();
@@ -249,6 +252,9 @@ class CSendDialogBase : public wxDialog
 		wxButton* m_buttonAddress;
 		wxStaticText* m_staticText19;
 		wxTextCtrl* m_textCtrlAmount;
+		wxStaticText* m_staticText191;
+		wxTextCtrl* m_textCtrlFromAddress;
+		wxStaticText* m_staticText1911;
 		wxStaticText* m_staticText20;
 		wxChoice* m_choiceTransferType;
 		
@@ -269,7 +275,7 @@ class CSendDialogBase : public wxDialog
 	
 	public:
 		
-		CSendDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Send Coins"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 498,157 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		CSendDialogBase( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Send Coins"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 590,210 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~CSendDialogBase();
 	
 };

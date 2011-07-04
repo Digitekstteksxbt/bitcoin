@@ -57,6 +57,8 @@
 #include <map>
 
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/lambda/lambda.hpp>
 
 #ifdef __WXMSW__
 #include <windows.h>

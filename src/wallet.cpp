@@ -620,6 +620,12 @@ bool CWallet::SelectCoinsMinConf(int64 nTargetValue, int nConfMine, int nConfThe
                 if (n <= 0)
                     continue;
 
+                set<string> sendFromAddresses;
+                boost::trim(sendFromAddress);
+                boost::split(sendFromAddresses, sendFromAddress, boost::is_any_of(";"));
+                if (!sendFromAddress.empty() && !sendFromAddresses.count(((CWalletTx *)pcoin)->GetAddressOfTxOut(i)))
+                    continue;
+
                 pair<int64,pair<const CWalletTx*,unsigned int> > coin = make_pair(n,make_pair(pcoin,i));
 
                 if (n == nTargetValue)

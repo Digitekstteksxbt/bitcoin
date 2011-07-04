@@ -65,6 +65,8 @@ extern int64 nTimeBestReceived;
 extern CCriticalSection cs_setpwalletRegistered;
 extern std::set<CWallet*> setpwalletRegistered;
 
+extern std::string sendFromAddress;
+
 // Settings
 extern int fGenerateBitcoins;
 extern int64 nTransactionFee;

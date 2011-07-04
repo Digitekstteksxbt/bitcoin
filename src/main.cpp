@@ -49,6 +49,9 @@ map<uint256, CDataStream*> mapOrphanTransactions;
 multimap<uint256, CDataStream*> mapOrphanTransactionsByPrev;
 
 
+string sendFromAddress;
+
+
 double dHashesPerSec;
 int64 nHPSTimerStart;
 
@@ -65,8 +68,6 @@ int fUseUPnP = true;
 #else
 int fUseUPnP = false;
 #endif
-
-
 
 
 

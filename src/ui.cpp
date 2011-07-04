@@ -319,6 +319,13 @@ CMainFrame::CMainFrame(wxWindow* parent) : CMainFrameBase(parent)
         p->InsertColumn(5, _("Debit"),       wxLIST_FORMAT_RIGHT, dResize * 79);
         p->InsertColumn(6, _("Credit"),      wxLIST_FORMAT_RIGHT, dResize * 79);
     }
+    m_listCtrlSendFrom->InsertColumn(0, "",               wxLIST_FORMAT_LEFT,  dResize * 0);
+    m_listCtrlSendFrom->InsertColumn(1, "",               wxLIST_FORMAT_LEFT,  dResize * 0);
+    m_listCtrlSendFrom->InsertColumn(2, _("Address"),     wxLIST_FORMAT_LEFT,  dResize * 239);
+    m_listCtrlSendFrom->InsertColumn(3, _("Label"),     wxLIST_FORMAT_RIGHT, dResize * 170);
+    m_listCtrlSendFrom->InsertColumn(4, _("Balance"),     wxLIST_FORMAT_RIGHT, dResize * 100);
+    m_listCtrlSendFrom->InsertColumn(5, _("Balance Minus Tx Fee"),     wxLIST_FORMAT_RIGHT, dResize * 115);
+
 
     // Init status bar
     int pnWidths[3] = { -100, 88, 300 };
@@ -814,10 +821,171 @@ void CMainFrame::RefreshListCtrl()
     ::wxWakeUpIdle();
 }
 
+void CMainFrame::UpdateSendFromAddresses()
+{
+  m_listCtrlSendFrom->DeleteAllItems();
+
+  CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
+  {
+    map<string, int64> balances;
+
+    BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, pwalletMain->mapWallet) {
+      CWalletTx *pcoin = &walletEntry.second;
+
+      if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+        continue;
+
+      if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+        continue;
+
+      int nDepth = pcoin->GetDepthInMainChain();
+      if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+        continue;
+
+      for (int i = 0; i < pcoin->vout.size(); i++)
+      {
+        if (!pwalletMain->IsMine(pcoin->vout[i]))
+          continue;
+
+        int64 n = pcoin->IsSpent(i) ? 0 : pcoin->vout[i].nValue;
+
+        string addr = pcoin->GetAddressOfTxOut(i);
+        if (!balances.count(addr))  balances[addr] = 0;
+        balances[addr] += n;
+      }
+    }
+
+    set< set<string> > groupings = GetAddressGroupings();
+    set< set<string> > nonZeroGroupings;
+
+    BOOST_FOREACH(set<string> addresses, groupings)
+      BOOST_FOREACH(string address, addresses)
+        if (balances[address] > 0)
+          nonZeroGroupings.insert(addresses);
+
+    BOOST_FOREACH(set<string> addresses, nonZeroGroupings) {
+      vector<string> sortedAddresses(addresses.begin(), addresses.end());
+      sort(sortedAddresses.begin(), sortedAddresses.end(), boost::lambda::var(balances)[boost::lambda::_1] > boost::lambda::var(balances)[boost::lambda::_2]);
+      reverse(sortedAddresses.begin(), sortedAddresses.end());
+
+      BOOST_FOREACH(string address, sortedAddresses) {
+        int64 balance = balances[address];
+
+        m_listCtrlSendFrom->InsertItem(0, "");
+        m_listCtrlSendFrom->SetItem(0, 2, address);
+
+        CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
+          if (pwalletMain->mapAddressBook.find(address) != pwalletMain->mapAddressBook.end())
+            m_listCtrlSendFrom->SetItem(0, 3, pwalletMain->mapAddressBook.find(address)->second);
+
+        if (balance > 0) {
+          m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, balance/COIN, balance%COIN));
+          if (balance-MIN_TX_FEE < 0)
+            m_listCtrlSendFrom->SetItem(0, 5, "less than 0");
+          else
+            m_listCtrlSendFrom->SetItem(0, 5, strprintf("%"PRI64d".%08"PRI64d, (balance-MIN_TX_FEE)/COIN, (balance-MIN_TX_FEE)%COIN));
+        } else {
+          m_listCtrlSendFrom->SetItem(0, 4, "-");
+          m_listCtrlSendFrom->SetItem(0, 5, "-");
+        }
+
+      }
+      m_listCtrlSendFrom->InsertItem(0, "");
+    }
+  }
+}
+
+set< set<string> > CMainFrame::GetAddressGroupings()
+{
+  map< string, set<string> > groupings;
+
+  BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, pwalletMain->mapWallet) {
+    CWalletTx *pcoin = &walletEntry.second;
+
+    if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+      continue;
+
+    if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+      continue;
+
+    int nDepth = pcoin->GetDepthInMainChain();
+    if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+      continue;
+
+    if (pcoin->vin.size() > 0 && pwalletMain->IsMine(pcoin->vin[0])) {
+      // group all in addrs with eachother
+      BOOST_FOREACH(CTxIn txin1, pcoin->vin) {
+        BOOST_FOREACH(CTxIn txin2, pcoin->vin) {
+          CWalletTx tx1 = pwalletMain->mapWallet[txin1.prevout.hash];
+          CWalletTx tx2 = pwalletMain->mapWallet[txin2.prevout.hash];
+          string addr1 = tx1.GetAddressOfTxOut(txin1.prevout.n);
+          string addr2 = tx2.GetAddressOfTxOut(txin2.prevout.n);
+          groupings[addr1].insert(addr2);
+        }
+      }
+
+      // group change with first in addr, only need to group w first cuz all in addrs already grouped
+      BOOST_FOREACH(CTxOut txout, pcoin->vout) {
+        if (pwalletMain->IsChange(txout)) {
+          CWalletTx tx = pwalletMain->mapWallet[pcoin->vin[0].prevout.hash];
+          string addr = tx.GetAddressOfTxOut(pcoin->vin[0].prevout.n);
+          groupings[addr].insert(txout.scriptPubKey.GetBitcoinAddress());
+        }
+      }
+    }
+
+    // group lone addrs by themselves
+    for (int i = 0; i < pcoin->vout.size(); i++) {
+      if (!pwalletMain->IsMine(pcoin->vout[i]))  continue;
+      string addr = pcoin->GetAddressOfTxOut(i);
+      groupings[addr].insert(addr);
+    }
+  }
+
+  set<string> addresses;
+  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
+    addresses.insert(grouping.first);
+
+  BOOST_FOREACH(string address, addresses) {
+    set<string> expanded;
+    expanded = ExpandGrouping(groupings, address, expanded);
+    BOOST_FOREACH(string addr, expanded)  groupings[addr] = expanded;
+  }
+
+  set< set<string> > uniqueGroupings;
+  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
+    uniqueGroupings.insert(grouping.second);
+  
+  return uniqueGroupings;
+}
+
+set<string> CMainFrame::ExpandGrouping(map< string, set<string> > &groupings, string address, set<string> &expanded)
+{
+  if (expanded.count(address))  return expanded;
+  expanded.insert(address);
+  BOOST_FOREACH(string expandAddress, groupings[address])
+    ExpandGrouping(groupings, expandAddress, expanded);
+  return expanded;
+}
+
+string CMainFrame::GetSendFromAddress() {
+  string s;
+  long item = -1;
+  loop { 
+    item = m_listCtrlSendFrom->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+    if (item == -1)  return s;
+    string text = (string)GetItemText(m_listCtrlSendFrom, item, 2);
+    if (!text.empty())
+      s += (!s.empty() ? ";" : "") + text;
+  }
+}
+
 void CMainFrame::OnIdle(wxIdleEvent& event)
 {
     if (fRefreshListCtrl)
     {
+        UpdateSendFromAddresses();
+
         // Collect list of wallet transactions and sort newest first
         bool fEntered = false;
         vector<pair<unsigned int, uint256> > vSorted;
@@ -1141,6 +1309,7 @@ void CMainFrame::OnButtonSend(wxCommandEvent& event)
     // Toolbar: Send
     CSendDialog dialog(this);
     dialog.ShowModal();
+    UpdateSendFromAddresses();
 }
 
 void CMainFrame::OnButtonAddressBook(wxCommandEvent& event)
@@ -1203,6 +1372,9 @@ void CMainFrame::OnButtonCopy(wxCommandEvent& event)
 
 void CMainFrame::OnListItemActivated(wxListEvent& event)
 {
+    if (nPage == SENDFROMADDRESS)
+      return OnButtonSend(event);
+
     uint256 hash((string)GetItemText(m_listCtrl, event.GetIndex(), 1));
     CWalletTx wtx;
     CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
@@ -1850,14 +2022,18 @@ CSendDialog::CSendDialog(wxWindow* parent, const wxString& strAddress) : CSendDi
     m_bitmapCheckMark->Show(false);
     fEnabledPrev = true;
     m_textCtrlAddress->SetFocus();
-    
+
+    string sendFrom = (string)((CMainFrame*)parent)->GetSendFromAddress();
+    if (!sendFrom.empty())
+      m_textCtrlFromAddress->SetValue(sendFrom);
+
     //// todo: should add a display of your balance for convenience
 #ifndef __WXMSW__
     wxFont fontTmp = m_staticTextInstructions->GetFont();
     if (fontTmp.GetPointSize() > 9);
         fontTmp.SetPointSize(9);
     m_staticTextInstructions->SetFont(fontTmp);
-    SetSize(725, 180);
+    SetSize(725, 210);
 #else
     SetSize(nScaleX * GetSize().GetWidth(), nScaleY * GetSize().GetHeight());
 #endif
@@ -1921,6 +2097,7 @@ void CSendDialog::OnButtonSend(wxCommandEvent& event)
     {
         CWalletTx wtx;
         string strAddress = (string)m_textCtrlAddress->GetValue();
+        sendFromAddress = (string)m_textCtrlFromAddress->GetValue();
 
         // Parse amount
         int64 nValue = 0;

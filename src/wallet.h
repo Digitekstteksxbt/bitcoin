@@ -490,6 +490,13 @@ public:
         return true;
     }
 
+    std::string GetAddressOfTxOut(int n) {
+        std::vector<unsigned char> pk;
+        if (!IsCoinBase())  return vout[n].scriptPubKey.GetBitcoinAddress();
+        ExtractPubKey(vout[n].scriptPubKey, pwallet, pk);
+        return PubKeyToAddress(pk);
+    }
+
     bool WriteToDisk();
 
     int64 GetTxTime() const;

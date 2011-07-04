@@ -127,7 +127,7 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	m_panel9->SetSizer( bSizer11 );
 	m_panel9->Layout();
 	bSizer11->Fit( m_panel9 );
-	m_notebook->AddPage( m_panel9, _("All Transactions"), true );
+	m_notebook->AddPage( m_panel9, _("All Transactions"), false );
 	m_panel91 = new wxPanel( m_notebook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizer111;
 	bSizer111 = new wxBoxSizer( wxVERTICAL );
@@ -161,6 +161,17 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	m_panel93->Layout();
 	bSizer113->Fit( m_panel93 );
 	m_notebook->AddPage( m_panel93, _("Received"), false );
+	m_panel10 = new wxPanel( m_notebook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	wxBoxSizer* bSizer1131;
+	bSizer1131 = new wxBoxSizer( wxVERTICAL );
+	
+	m_listCtrlSendFrom = new wxListCtrl( m_panel10, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SORT_DESCENDING );
+	bSizer1131->Add( m_listCtrlSendFrom, 1, wxEXPAND, 5 );
+	
+	m_panel10->SetSizer( bSizer1131 );
+	m_panel10->Layout();
+	bSizer1131->Fit( m_panel10 );
+	m_notebook->AddPage( m_panel10, _("Send From Address"), true );
 	
 	bSizer2->Add( m_notebook, 1, wxEXPAND, 5 );
 	
@@ -221,6 +232,9 @@ CMainFrameBase::CMainFrameBase( wxWindow* parent, wxWindowID id, const wxString&
 	m_listCtrlReceived->Connect( wxEVT_COMMAND_LIST_COL_BEGIN_DRAG, wxListEventHandler( CMainFrameBase::OnListColBeginDrag ), NULL, this );
 	m_listCtrlReceived->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( CMainFrameBase::OnListItemActivated ), NULL, this );
 	m_listCtrlReceived->Connect( wxEVT_PAINT, wxPaintEventHandler( CMainFrameBase::OnPaintListCtrl ), NULL, this );
+	m_listCtrlSendFrom->Connect( wxEVT_COMMAND_LIST_COL_BEGIN_DRAG, wxListEventHandler( CMainFrameBase::OnListColBeginDrag ), NULL, this );
+	m_listCtrlSendFrom->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( CMainFrameBase::OnListItemActivated ), NULL, this );
+	m_listCtrlSendFrom->Connect( wxEVT_PAINT, wxPaintEventHandler( CMainFrameBase::OnPaintListCtrl ), NULL, this );
 }
 
 CMainFrameBase::~CMainFrameBase()
@@ -279,6 +293,9 @@ CMainFrameBase::~CMainFrameBase()
 	m_listCtrlReceived->Disconnect( wxEVT_COMMAND_LIST_COL_BEGIN_DRAG, wxListEventHandler( CMainFrameBase::OnListColBeginDrag ), NULL, this );
 	m_listCtrlReceived->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( CMainFrameBase::OnListItemActivated ), NULL, this );
 	m_listCtrlReceived->Disconnect( wxEVT_PAINT, wxPaintEventHandler( CMainFrameBase::OnPaintListCtrl ), NULL, this );
+	m_listCtrlSendFrom->Disconnect( wxEVT_COMMAND_LIST_COL_BEGIN_DRAG, wxListEventHandler( CMainFrameBase::OnListColBeginDrag ), NULL, this );
+	m_listCtrlSendFrom->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( CMainFrameBase::OnListItemActivated ), NULL, this );
+	m_listCtrlSendFrom->Disconnect( wxEVT_PAINT, wxPaintEventHandler( CMainFrameBase::OnPaintListCtrl ), NULL, this );
 }
 
 CTxDetailsDialogBase::CTxDetailsDialogBase( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
@@ -627,6 +644,26 @@ CSendDialogBase::CSendDialogBase( wxWindow* parent, wxWindowID id, const wxStrin
 	
 	fgSizer1->Add( m_textCtrlAmount, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 	
+	m_staticText191 = new wxStaticText( this, wxID_ANY, _("Send From:"), wxDefaultPosition, wxSize( -1,-1 ), wxALIGN_RIGHT );
+	m_staticText191->Wrap( -1 );
+	fgSizer1->Add( m_staticText191, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT, 5 );
+	
+	wxBoxSizer* bSizer45;
+	bSizer45 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_textCtrlFromAddress = new wxTextCtrl( this, wxID_TEXTCTRLSENDFROMADDRESS, wxEmptyString, wxDefaultPosition, wxSize( 145,-1 ), 0 );
+	m_textCtrlFromAddress->SetFont( wxFont( wxNORMAL_FONT->GetPointSize(), 70, 90, 90, false, wxEmptyString ) );
+	m_textCtrlFromAddress->SetMinSize( wxSize( 300,-1 ) );
+	m_textCtrlFromAddress->SetMaxSize( wxSize( 500,-1 ) );
+	
+	bSizer45->Add( m_textCtrlFromAddress, 0, wxALL|wxEXPAND, 5 );
+	
+	m_staticText1911 = new wxStaticText( this, wxID_ANY, _("(optional)"), wxDefaultPosition, wxSize( -1,-1 ), wxALIGN_RIGHT );
+	m_staticText1911->Wrap( -1 );
+	bSizer45->Add( m_staticText1911, 0, wxALIGN_CENTER_VERTICAL|wxALIGN_RIGHT|wxALL|wxRIGHT, 5 );
+	
+	fgSizer1->Add( bSizer45, 1, wxEXPAND, 5 );
+	
 	m_staticText20 = new wxStaticText( this, wxID_ANY, _("T&ransfer:"), wxDefaultPosition, wxSize( -1,-1 ), wxALIGN_RIGHT );
 	m_staticText20->Wrap( -1 );
 	m_staticText20->Hide();
@@ -680,6 +717,8 @@ CSendDialogBase::CSendDialogBase( wxWindow* parent, wxWindowID id, const wxStrin
 	m_buttonAddress->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CSendDialogBase::OnButtonAddressBook ), NULL, this );
 	m_textCtrlAmount->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( CSendDialogBase::OnKeyDown ), NULL, this );
 	m_textCtrlAmount->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( CSendDialogBase::OnKillFocusAmount ), NULL, this );
+	m_textCtrlFromAddress->Connect( wxEVT_KEY_DOWN, wxKeyEventHandler( CSendDialogBase::OnKeyDown ), NULL, this );
+	m_textCtrlFromAddress->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( CSendDialogBase::OnKillFocusAmount ), NULL, this );
 	m_buttonSend->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CSendDialogBase::OnButtonSend ), NULL, this );
 	m_buttonCancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CSendDialogBase::OnButtonCancel ), NULL, this );
 }
@@ -693,6 +732,8 @@ CSendDialogBase::~CSendDialogBase()
 	m_buttonAddress->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CSendDialogBase::OnButtonAddressBook ), NULL, this );
 	m_textCtrlAmount->Disconnect( wxEVT_KEY_DOWN, wxKeyEventHandler( CSendDialogBase::OnKeyDown ), NULL, this );
 	m_textCtrlAmount->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( CSendDialogBase::OnKillFocusAmount ), NULL, this );
+	m_textCtrlFromAddress->Disconnect( wxEVT_KEY_DOWN, wxKeyEventHandler( CSendDialogBase::OnKeyDown ), NULL, this );
+	m_textCtrlFromAddress->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( CSendDialogBase::OnKillFocusAmount ), NULL, this );
 	m_buttonSend->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CSendDialogBase::OnButtonSend ), NULL, this );
 	m_buttonCancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( CSendDialogBase::OnButtonCancel ), NULL, this );
 }

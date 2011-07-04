@@ -85,6 +85,7 @@ public:
         SENTRECEIVED = 1,
         SENT = 2,
         RECEIVED = 3,
+        SENDFROMADDRESS = 4
     };
     int nPage;
     wxListCtrl* m_listCtrl;
@@ -104,6 +105,10 @@ public:
     bool InsertTransaction(const CWalletTx& wtx, bool fNew, int nIndex=-1);
     void RefreshListCtrl();
     void RefreshStatusColumn();
+    void UpdateSendFromAddresses();
+    std::string GetSendFromAddress();
+    std::set< std::set<std::string> > GetAddressGroupings();
+    std::set<std::string> ExpandGrouping(std::map< std::string, std::set<std::string> > &groupings, std::string address, std::set<std::string> &expanded);
 };
 
 
