@@ -70,6 +70,10 @@ public:
     std::vector<unsigned char> GetKeyFromKeyPool();
     int64 GetOldestKeyPoolTime();
 
+    std::set<std::string> ExpandGrouping(std::map< std::string, std::set<std::string> > &groupings, std::string address, std::set<std::string> &expanded);
+    std::set< std::set<std::string> > GetAddressGroupings();
+    std::map<std::string, int64> GetAddressBalances();
+
     bool IsMine(const CTxIn& txin) const;
     int64 GetDebit(const CTxIn& txin) const;
     bool IsMine(const CTxOut& txout) const

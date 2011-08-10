@@ -107,8 +107,6 @@ public:
     void RefreshStatusColumn();
     void UpdateSendFromAddresses();
     std::string GetSendFromAddress();
-    std::set< std::set<std::string> > GetAddressGroupings();
-    std::set<std::string> ExpandGrouping(std::map< std::string, std::set<std::string> > &groupings, std::string address, std::set<std::string> &expanded);
 };
 
 

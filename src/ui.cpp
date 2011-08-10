@@ -823,149 +823,44 @@ void CMainFrame::RefreshListCtrl()
 
 void CMainFrame::UpdateSendFromAddresses()
 {
+  map<string, int64> balances = pwalletMain->GetAddressBalances();
+  set< set<string> > groupings = pwalletMain->GetAddressGroupings();
+  set< set<string> > nonZeroGroupings;
+
+  BOOST_FOREACH(set<string> addresses, groupings)
+    BOOST_FOREACH(string address, addresses)
+      if (balances[address] > 0)
+        nonZeroGroupings.insert(addresses);
+
   m_listCtrlSendFrom->DeleteAllItems();
 
-  CRITICAL_BLOCK(pwalletMain->cs_mapWallet)
-  {
-    map<string, int64> balances;
+  BOOST_FOREACH(set<string> addresses, nonZeroGroupings) {
+    vector<string> sortedAddresses(addresses.begin(), addresses.end());
+    sort(sortedAddresses.begin(), sortedAddresses.end(), boost::lambda::var(balances)[boost::lambda::_1] < boost::lambda::var(balances)[boost::lambda::_2]);
 
-    BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, pwalletMain->mapWallet) {
-      CWalletTx *pcoin = &walletEntry.second;
+    BOOST_FOREACH(string address, sortedAddresses) {
+      int64 balance = balances[address];
 
-      if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
-        continue;
-
-      if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
-        continue;
-
-      int nDepth = pcoin->GetDepthInMainChain();
-      if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
-        continue;
-
-      for (int i = 0; i < pcoin->vout.size(); i++)
-      {
-        if (!pwalletMain->IsMine(pcoin->vout[i]))
-          continue;
-
-        int64 n = pcoin->IsSpent(i) ? 0 : pcoin->vout[i].nValue;
-
-        string addr = pcoin->GetAddressOfTxOut(i);
-        if (!balances.count(addr))  balances[addr] = 0;
-        balances[addr] += n;
-      }
-    }
-
-    set< set<string> > groupings = GetAddressGroupings();
-    set< set<string> > nonZeroGroupings;
-
-    BOOST_FOREACH(set<string> addresses, groupings)
-      BOOST_FOREACH(string address, addresses)
-        if (balances[address] > 0)
-          nonZeroGroupings.insert(addresses);
-
-    BOOST_FOREACH(set<string> addresses, nonZeroGroupings) {
-      vector<string> sortedAddresses(addresses.begin(), addresses.end());
-      sort(sortedAddresses.begin(), sortedAddresses.end(), boost::lambda::var(balances)[boost::lambda::_1] > boost::lambda::var(balances)[boost::lambda::_2]);
-      reverse(sortedAddresses.begin(), sortedAddresses.end());
-
-      BOOST_FOREACH(string address, sortedAddresses) {
-        int64 balance = balances[address];
-
-        m_listCtrlSendFrom->InsertItem(0, "");
-        m_listCtrlSendFrom->SetItem(0, 2, address);
-
-        CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
-          if (pwalletMain->mapAddressBook.find(address) != pwalletMain->mapAddressBook.end())
-            m_listCtrlSendFrom->SetItem(0, 3, pwalletMain->mapAddressBook.find(address)->second);
-
-        if (balance > 0) {
-          m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, balance/COIN, balance%COIN));
-          if (balance-MIN_TX_FEE < 0)
-            m_listCtrlSendFrom->SetItem(0, 5, "less than 0");
-          else
-            m_listCtrlSendFrom->SetItem(0, 5, strprintf("%"PRI64d".%08"PRI64d, (balance-MIN_TX_FEE)/COIN, (balance-MIN_TX_FEE)%COIN));
-        } else {
-          m_listCtrlSendFrom->SetItem(0, 4, "-");
-          m_listCtrlSendFrom->SetItem(0, 5, "-");
-        }
-
-      }
       m_listCtrlSendFrom->InsertItem(0, "");
-    }
-  }
-}
+      m_listCtrlSendFrom->SetItem(0, 2, address);
 
-set< set<string> > CMainFrame::GetAddressGroupings()
-{
-  map< string, set<string> > groupings;
+      CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
+        if (pwalletMain->mapAddressBook.find(address) != pwalletMain->mapAddressBook.end())
+          m_listCtrlSendFrom->SetItem(0, 3, pwalletMain->mapAddressBook.find(address)->second);
 
-  BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, pwalletMain->mapWallet) {
-    CWalletTx *pcoin = &walletEntry.second;
-
-    if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
-      continue;
-
-    if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
-      continue;
-
-    int nDepth = pcoin->GetDepthInMainChain();
-    if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
-      continue;
-
-    if (pcoin->vin.size() > 0 && pwalletMain->IsMine(pcoin->vin[0])) {
-      // group all in addrs with eachother
-      BOOST_FOREACH(CTxIn txin1, pcoin->vin) {
-        BOOST_FOREACH(CTxIn txin2, pcoin->vin) {
-          CWalletTx tx1 = pwalletMain->mapWallet[txin1.prevout.hash];
-          CWalletTx tx2 = pwalletMain->mapWallet[txin2.prevout.hash];
-          string addr1 = tx1.GetAddressOfTxOut(txin1.prevout.n);
-          string addr2 = tx2.GetAddressOfTxOut(txin2.prevout.n);
-          groupings[addr1].insert(addr2);
-        }
-      }
-
-      // group change with first in addr, only need to group w first cuz all in addrs already grouped
-      BOOST_FOREACH(CTxOut txout, pcoin->vout) {
-        if (pwalletMain->IsChange(txout)) {
-          CWalletTx tx = pwalletMain->mapWallet[pcoin->vin[0].prevout.hash];
-          string addr = tx.GetAddressOfTxOut(pcoin->vin[0].prevout.n);
-          groupings[addr].insert(txout.scriptPubKey.GetBitcoinAddress());
-        }
+      if (balance > 0) {
+        m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, balance/COIN, balance%COIN));
+        if (balance-MIN_TX_FEE < 0)
+          m_listCtrlSendFrom->SetItem(0, 5, "less than 0");
+        else
+          m_listCtrlSendFrom->SetItem(0, 5, strprintf("%"PRI64d".%08"PRI64d, (balance-MIN_TX_FEE)/COIN, (balance-MIN_TX_FEE)%COIN));
+      } else {
+        m_listCtrlSendFrom->SetItem(0, 4, "-");
+        m_listCtrlSendFrom->SetItem(0, 5, "-");
       }
     }
-
-    // group lone addrs by themselves
-    for (int i = 0; i < pcoin->vout.size(); i++) {
-      if (!pwalletMain->IsMine(pcoin->vout[i]))  continue;
-      string addr = pcoin->GetAddressOfTxOut(i);
-      groupings[addr].insert(addr);
-    }
+    m_listCtrlSendFrom->InsertItem(0, "");
   }
-
-  set<string> addresses;
-  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
-    addresses.insert(grouping.first);
-
-  BOOST_FOREACH(string address, addresses) {
-    set<string> expanded;
-    expanded = ExpandGrouping(groupings, address, expanded);
-    BOOST_FOREACH(string addr, expanded)  groupings[addr] = expanded;
-  }
-
-  set< set<string> > uniqueGroupings;
-  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
-    uniqueGroupings.insert(grouping.second);
-  
-  return uniqueGroupings;
-}
-
-set<string> CMainFrame::ExpandGrouping(map< string, set<string> > &groupings, string address, set<string> &expanded)
-{
-  if (expanded.count(address))  return expanded;
-  expanded.insert(address);
-  BOOST_FOREACH(string expandAddress, groupings[address])
-    ExpandGrouping(groupings, expandAddress, expanded);
-  return expanded;
 }
 
 string CMainFrame::GetSendFromAddress() {

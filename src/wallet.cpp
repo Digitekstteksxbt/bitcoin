@@ -1115,6 +1115,115 @@ int64 CWallet::GetOldestKeyPoolTime()
     return keypool.nTime;
 }
 
+std::map<std::string, int64> CWallet::GetAddressBalances()
+{
+  map<string, int64> balances;
+
+  CRITICAL_BLOCK(cs_mapWallet)
+  {
+    BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet) {
+      CWalletTx *pcoin = &walletEntry.second;
+
+      if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+        continue;
+
+      if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+        continue;
+
+      int nDepth = pcoin->GetDepthInMainChain();
+      if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+        continue;
+
+      for (int i = 0; i < pcoin->vout.size(); i++)
+      {
+        if (!IsMine(pcoin->vout[i]))
+          continue;
+
+        int64 n = pcoin->IsSpent(i) ? 0 : pcoin->vout[i].nValue;
+
+        string addr = pcoin->GetAddressOfTxOut(i);
+        if (!balances.count(addr))  balances[addr] = 0;
+        balances[addr] += n;
+      }
+    }
+  }
+
+  return balances;
+}
+
+set< set<string> > CWallet::GetAddressGroupings()
+{
+  map< string, set<string> > groupings;
+
+  BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet) {
+    CWalletTx *pcoin = &walletEntry.second;
+
+    if (!pcoin->IsFinal() || !pcoin->IsConfirmed())
+      continue;
+
+    if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+      continue;
+
+    int nDepth = pcoin->GetDepthInMainChain();
+    if (nDepth < (pcoin->IsFromMe() ? 0 : 1))
+      continue;
+
+    if (pcoin->vin.size() > 0 && IsMine(pcoin->vin[0])) {
+      // group all in addrs with eachother
+      BOOST_FOREACH(CTxIn txin1, pcoin->vin) {
+        BOOST_FOREACH(CTxIn txin2, pcoin->vin) {
+          CWalletTx tx1 = mapWallet[txin1.prevout.hash];
+          CWalletTx tx2 = mapWallet[txin2.prevout.hash];
+          string addr1 = tx1.GetAddressOfTxOut(txin1.prevout.n);
+          string addr2 = tx2.GetAddressOfTxOut(txin2.prevout.n);
+          groupings[addr1].insert(addr2);
+        }
+      }
+
+      // group change with first in addr, only need to group w first cuz all in addrs already grouped
+      BOOST_FOREACH(CTxOut txout, pcoin->vout) {
+        if (IsChange(txout)) {
+          CWalletTx tx = mapWallet[pcoin->vin[0].prevout.hash];
+          string addr = tx.GetAddressOfTxOut(pcoin->vin[0].prevout.n);
+          groupings[addr].insert(txout.scriptPubKey.GetBitcoinAddress());
+        }
+      }
+    }
+
+    // group lone addrs by themselves
+    for (int i = 0; i < pcoin->vout.size(); i++) {
+      if (!IsMine(pcoin->vout[i]))  continue;
+      string addr = pcoin->GetAddressOfTxOut(i);
+      groupings[addr].insert(addr);
+    }
+  }
+
+  set<string> addresses;
+  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
+    addresses.insert(grouping.first);
+
+  BOOST_FOREACH(string address, addresses) {
+    set<string> expanded;
+    expanded = ExpandGrouping(groupings, address, expanded);
+    BOOST_FOREACH(string addr, expanded)  groupings[addr] = expanded;
+  }
+
+  set< set<string> > uniqueGroupings;
+  BOOST_FOREACH(PAIRTYPE(string, set<string>) grouping, groupings)
+    uniqueGroupings.insert(grouping.second);
+  
+  return uniqueGroupings;
+}
+
+set<string> CWallet::ExpandGrouping(map< string, set<string> > &groupings, string address, set<string> &expanded)
+{
+  if (expanded.count(address))  return expanded;
+  expanded.insert(address);
+  BOOST_FOREACH(string expandAddress, groupings[address])
+    ExpandGrouping(groupings, expandAddress, expanded);
+  return expanded;
+}
+
 vector<unsigned char> CReserveKey::GetReservedKey()
 {
     if (nIndex == -1)

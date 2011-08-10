@@ -512,29 +512,48 @@ Value sendtoaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
         throw runtime_error(
-            "sendtoaddress <bitcoinaddress> <amount> [comment] [comment-to]\n"
+            "sendtoaddress <bitcoinaddress>[:<sendfromaddress1>[,<sendfromaddress2>[,...]]] <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.00000001");
 
     string strAddress = params[0].get_str();
 
-    // Amount
-    int64 nAmount = AmountFromValue(params[1]);
+    vector<string> splitAddresses;
+    boost::split(splitAddresses, strAddress, boost::is_any_of(":"));
 
-    // Wallet comments
-    CWalletTx wtx;
-    if (params.size() > 2 && params[2].type() != null_type && !params[2].get_str().empty())
-        wtx.mapValue["comment"] = params[2].get_str();
-    if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
-        wtx.mapValue["to"]      = params[3].get_str();
+    if (splitAddresses.size() > 2)
+        throw runtime_error(
+            "sendtoaddress <bitcoinaddress>[:<sendfromaddress1>[,<sendfromaddress2>[,...]]] <amount> [comment] [comment-to]\n"
+            "<amount> is a real and is rounded to the nearest 0.00000001");
 
-    CRITICAL_BLOCK(cs_main)
-    {
-        string strError = pwalletMain->SendMoneyToBitcoinAddress(strAddress, nAmount, wtx);
-        if (strError != "")
-            throw JSONRPCError(-4, strError);
+    strAddress = splitAddresses[0];
+    if (splitAddresses.size() == 2)  sendFromAddress = splitAddresses[1];
+    replace(sendFromAddress.begin(), sendFromAddress.end(), ',', ';');
+    
+    try {
+      // Amount
+      int64 nAmount = AmountFromValue(params[1]);
+
+      // Wallet comments
+      CWalletTx wtx;
+      if (params.size() > 2 && params[2].type() != null_type && !params[2].get_str().empty())
+          wtx.mapValue["comment"] = params[2].get_str();
+      if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
+          wtx.mapValue["to"]      = params[3].get_str();
+
+      CRITICAL_BLOCK(cs_main)
+      {
+          string strError = pwalletMain->SendMoneyToBitcoinAddress(strAddress, nAmount, wtx);
+          if (strError != "")
+              throw JSONRPCError(-4, strError);
+      }
+
+      sendFromAddress = "";
+
+      return wtx.GetHash().GetHex();
+    } catch (...) {
+      sendFromAddress = "";
+      throw;
     }
-
-    return wtx.GetHash().GetHex();
 }
 
 
@@ -1107,6 +1126,27 @@ void AcentryToJSON(const CAccountingEntry& acentry, const string& strAccount, Ar
     }
 }
 
+Value listaddressgroupings(const Array& params, bool fHelp)
+{
+  if (fHelp)  throw runtime_error("listaddressgroupings");
+  Array jsonGroupings;
+  map<string, int64> balances = pwalletMain->GetAddressBalances();
+  BOOST_FOREACH(set<string> grouping, pwalletMain->GetAddressGroupings()) {
+    Array jsonGrouping;
+    BOOST_FOREACH(string address, grouping) {
+      Array addressInfo;
+      addressInfo.push_back(address);
+      addressInfo.push_back(ValueFromAmount(balances[address]));
+      CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
+        if (pwalletMain->mapAddressBook.find(address) != pwalletMain->mapAddressBook.end())
+          addressInfo.push_back(pwalletMain->mapAddressBook.find(address)->second);
+      jsonGrouping.push_back(addressInfo);
+    }
+    jsonGroupings.push_back(jsonGrouping);
+  }
+  return jsonGroupings;
+}
+
 Value listtransactions(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 3)
@@ -1467,6 +1507,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("sendmany",              &sendmany),
     make_pair("gettransaction",        &gettransaction),
     make_pair("listtransactions",      &listtransactions),
+    make_pair("listaddressgroupings",  &listaddressgroupings),
     make_pair("getwork",               &getwork),
     make_pair("listaccounts",          &listaccounts),
     make_pair("settxfee",              &settxfee),
