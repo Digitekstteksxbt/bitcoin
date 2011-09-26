@@ -100,6 +100,8 @@ class CMainFrameBase : public wxFrame
 		virtual void OnPaint( wxPaintEvent& event ) { event.Skip(); }
 		virtual void OnMenuFileExit( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnMenuOptionsChangeYourAddress( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnMenuOptionsEncryptWallet( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnMenuOptionsChangeWalletPassphrase( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnMenuOptionsOptions( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnMenuHelpAbout( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnButtonSend( wxCommandEvent& event ) { event.Skip(); }
@@ -117,6 +119,8 @@ class CMainFrameBase : public wxFrame
 	
 	public:
 		wxMenu* m_menuOptions;
+		wxMenuItem* m_menuOptionsEncryptWallet;
+		wxMenuItem* m_menuOptionsChangeWalletPassphrase;
 		wxStatusBar* m_statusBar;
 		wxTextCtrl* m_textCtrlAddress;
 		wxListCtrl* m_listCtrlAll;
