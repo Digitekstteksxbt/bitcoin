@@ -506,10 +506,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
             "sendtoaddress <bitcoinaddress>[:<sendfromaddress1>[,<sendfromaddress2>[,...]]] <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.00000001");
 
-    CBitcoinAddress address(params[0].get_str());
-    if (!address.IsValid())
-        throw JSONRPCError(-5, "Invalid bitcoin address");
-
+    string strAddress = params[0].get_str();
     vector<string> splitAddresses;
     boost::split(splitAddresses, strAddress, boost::is_any_of(":"));
 
@@ -518,13 +515,17 @@ Value sendtoaddress(const Array& params, bool fHelp)
             "sendtoaddress <bitcoinaddress>[:<sendfromaddress1>[,<sendfromaddress2>[,...]]] <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.00000001");
 
-    if (pwalletMain->IsLocked())
-        throw JSONRPCError(-13, "Error: Please enter the wallet passphrase with walletpassphrase first.");
-
     strAddress = splitAddresses[0];
     if (splitAddresses.size() == 2)  sendFromAddress = splitAddresses[1];
     replace(sendFromAddress.begin(), sendFromAddress.end(), ',', ';');
-    
+
+    CBitcoinAddress address(strAddress);
+    if (!address.IsValid())
+        throw JSONRPCError(-5, "Invalid bitcoin address");
+
+    if (pwalletMain->IsLocked())
+        throw JSONRPCError(-13, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+
     try {
       // Amount
       int64 nAmount = AmountFromValue(params[1]);
@@ -547,8 +548,6 @@ Value sendtoaddress(const Array& params, bool fHelp)
       sendFromAddress = "";
       throw;
     }
-
-    return wtx.GetHash().GetHex();
 }
 
 
@@ -1114,9 +1113,9 @@ Value listaddressgroupings(const Array& params, bool fHelp)
       Array addressInfo;
       addressInfo.push_back(address);
       addressInfo.push_back(ValueFromAmount(balances[address]));
-      CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
-        if (pwalletMain->mapAddressBook.find(address) != pwalletMain->mapAddressBook.end())
-          addressInfo.push_back(pwalletMain->mapAddressBook.find(address)->second);
+      CRITICAL_BLOCK(pwalletMain->cs_wallet)
+        if (pwalletMain->mapAddressBook.find(CBitcoinAddress(address)) != pwalletMain->mapAddressBook.end())
+          addressInfo.push_back(pwalletMain->mapAddressBook.find(CBitcoinAddress(address))->second);
       jsonGrouping.push_back(addressInfo);
     }
     jsonGroupings.push_back(jsonGrouping);

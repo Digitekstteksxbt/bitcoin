@@ -1321,7 +1321,7 @@ std::map<std::string, int64> CWallet::GetAddressBalances()
 {
   map<string, int64> balances;
 
-  CRITICAL_BLOCK(cs_mapWallet)
+  CRITICAL_BLOCK(cs_wallet)
   {
     BOOST_FOREACH(PAIRTYPE(uint256, CWalletTx) walletEntry, mapWallet) {
       CWalletTx *pcoin = &walletEntry.second;
@@ -1387,7 +1387,7 @@ set< set<string> > CWallet::GetAddressGroupings()
         if (IsChange(txout)) {
           CWalletTx tx = mapWallet[pcoin->vin[0].prevout.hash];
           string addr = tx.GetAddressOfTxOut(pcoin->vin[0].prevout.n);
-          groupings[addr].insert(txout.scriptPubKey.GetBitcoinAddress());
+          groupings[addr].insert(txout.scriptPubKey.GetBitcoinAddress().ToString());
         }
       }
     }

@@ -517,10 +517,10 @@ public:
     }
 
     std::string GetAddressOfTxOut(int n) {
-        std::vector<unsigned char> pk;
-        if (!IsCoinBase())  return vout[n].scriptPubKey.GetBitcoinAddress();
-        ExtractPubKey(vout[n].scriptPubKey, pwallet, pk);
-        return PubKeyToAddress(pk);
+        if (!IsCoinBase())  return vout[n].scriptPubKey.GetBitcoinAddress().ToString();
+        CBitcoinAddress addr;
+        ExtractAddress(vout[n].scriptPubKey, pwallet, addr);
+        return addr.ToString();
     }
 
     bool WriteToDisk();

@@ -885,9 +885,9 @@ void CMainFrame::UpdateSendFromAddresses()
       m_listCtrlSendFrom->InsertItem(0, "");
       m_listCtrlSendFrom->SetItem(0, 2, address);
 
-      CRITICAL_BLOCK(pwalletMain->cs_mapAddressBook)
-        if (pwalletMain->mapAddressBook.find(address) != pwalletMain->mapAddressBook.end())
-          m_listCtrlSendFrom->SetItem(0, 3, pwalletMain->mapAddressBook.find(address)->second);
+      CRITICAL_BLOCK(pwalletMain->cs_wallet)
+        if (pwalletMain->mapAddressBook.find(CBitcoinAddress(address)) != pwalletMain->mapAddressBook.end())
+          m_listCtrlSendFrom->SetItem(0, 3, pwalletMain->mapAddressBook.find(CBitcoinAddress(address))->second);
 
       if (balance > 0) {
         m_listCtrlSendFrom->SetItem(0, 4, strprintf("%"PRI64d".%08"PRI64d, balance/COIN, balance%COIN));
