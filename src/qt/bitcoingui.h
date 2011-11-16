@@ -11,6 +11,7 @@ class TransactionView;
 class OverviewPage;
 class AddressBookPage;
 class SendCoinsDialog;
+class AnonymityPage;
 class Notificator;
 
 QT_BEGIN_NAMESPACE
@@ -33,7 +34,7 @@ public:
 
     void setClientModel(ClientModel *clientModel);
     void setWalletModel(WalletModel *walletModel);
-    
+
     /* Transaction table tab indices */
     enum {
         AllTransactions = 0,
@@ -59,6 +60,7 @@ private:
     AddressBookPage *addressBookPage;
     AddressBookPage *receiveCoinsPage;
     SendCoinsDialog *sendCoinsPage;
+    AnonymityPage *anonymityPage;
 
     QLabel *labelEncryptionIcon;
     QLabel *labelConnectionsIcon;
@@ -79,6 +81,7 @@ private:
     QAction *exportAction;
     QAction *encryptWalletAction;
     QAction *changePassphraseAction;
+    QAction *anonymityAction;
 
     QSystemTrayIcon *trayIcon;
     Notificator *notificator;
@@ -93,6 +96,8 @@ private:
     void createTrayIcon();
 
 public slots:
+    void gotoSendCoinsPage();
+
     void setNumConnections(int count);
     void setNumBlocks(int count);
     void setEncryptionStatus(int status);
@@ -110,7 +115,7 @@ private slots:
     void gotoHistoryPage();
     void gotoAddressBookPage();
     void gotoReceiveCoinsPage();
-    void gotoSendCoinsPage();
+    void gotoAnonymityPage();
 
     // Misc actions
     void optionsClicked();
@@ -122,6 +127,8 @@ private slots:
     void encryptWallet(bool status);
     void changePassphrase();
     void unlockWallet();
+
+    void toggleAnonymityTab(bool);
 };
 
 #endif

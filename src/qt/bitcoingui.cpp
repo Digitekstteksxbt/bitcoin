@@ -21,6 +21,8 @@
 #include "guiconstants.h"
 #include "askpassphrasedialog.h"
 #include "notificator.h"
+#include "anonymitypage.h"
+#include "guiutil.h"
 
 #ifdef Q_WS_MAC
 #include "macdockiconhandler.h"
@@ -44,6 +46,7 @@
 #include <QStackedWidget>
 #include <QDateTime>
 #include <QMovie>
+#include <QTableWidget>
 
 #include <QDragEnterEvent>
 #include <QUrl>
@@ -97,12 +100,16 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
 
     sendCoinsPage = new SendCoinsDialog(this);
 
+    anonymityPage = new AnonymityPage(this);
+    anonymityPage->setFont(GUIUtil::bitcoinAddressFont());
+
     centralWidget = new QStackedWidget(this);
     centralWidget->addWidget(overviewPage);
     centralWidget->addWidget(transactionsPage);
     centralWidget->addWidget(addressBookPage);
     centralWidget->addWidget(receiveCoinsPage);
     centralWidget->addWidget(sendCoinsPage);
+    centralWidget->addWidget(anonymityPage);
     setCentralWidget(centralWidget);
 
     // Create status bar
@@ -191,11 +198,18 @@ void BitcoinGUI::createActions()
     sendCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_2));
     tabGroup->addAction(sendCoinsAction);
 
+    anonymityAction = new QAction(QIcon(":/icons/history"), tr("&Anonymity"), this);
+    anonymityAction->setToolTip(tr("See address linkages"));
+    anonymityAction->setCheckable(true);
+    anonymityAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_6));
+    tabGroup->addAction(anonymityAction);
+
     connect(overviewAction, SIGNAL(triggered()), this, SLOT(gotoOverviewPage()));
     connect(historyAction, SIGNAL(triggered()), this, SLOT(gotoHistoryPage()));
     connect(addressBookAction, SIGNAL(triggered()), this, SLOT(gotoAddressBookPage()));
     connect(receiveCoinsAction, SIGNAL(triggered()), this, SLOT(gotoReceiveCoinsPage()));
     connect(sendCoinsAction, SIGNAL(triggered()), this, SLOT(gotoSendCoinsPage()));
+    connect(anonymityAction, SIGNAL(triggered()), this, SLOT(gotoAnonymityPage()));
 
     quitAction = new QAction(QIcon(":/icons/quit"), tr("E&xit"), this);
     quitAction->setToolTip(tr("Quit application"));
@@ -258,6 +272,7 @@ void BitcoinGUI::createToolBars()
     toolbar->addAction(receiveCoinsAction);
     toolbar->addAction(historyAction);
     toolbar->addAction(addressBookAction);
+    toolbar->addAction(anonymityAction);
 
     QToolBar *toolbar2 = addToolBar(tr("Actions toolbar"));
     toolbar2->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -323,6 +338,14 @@ void BitcoinGUI::setWalletModel(WalletModel *walletModel)
         // Ask for passphrase if needed
         connect(walletModel, SIGNAL(requireUnlock()), this, SLOT(unlockWallet()));
     }
+
+    connect(walletModel->getOptionsModel(), SIGNAL(anonFeaturesChanged(bool)), this, SLOT(toggleAnonymityTab(bool)));
+    toggleAnonymityTab(walletModel->getOptionsModel()->getAnonFeatures());
+}
+
+void BitcoinGUI::toggleAnonymityTab(bool show)
+{
+    anonymityAction->setVisible(show);
 }
 
 void BitcoinGUI::createTrayIcon()
@@ -606,9 +629,25 @@ void BitcoinGUI::gotoReceiveCoinsPage()
 
 void BitcoinGUI::gotoSendCoinsPage()
 {
+    if (!anonymityPage->selectedAddresses().empty()) {
+      sendCoinsPage->setSendFromAddress(anonymityPage->selectedAddresses());
+      anonymityPage->clearSelection();
+    }
+
     show();
     sendCoinsAction->setChecked(true);
     centralWidget->setCurrentWidget(sendCoinsPage);
+
+    exportAction->setEnabled(false);
+    disconnect(exportAction, SIGNAL(triggered()), 0, 0);
+}
+
+void BitcoinGUI::gotoAnonymityPage()
+{
+    show();
+    anonymityAction->setChecked(true);
+    centralWidget->setCurrentWidget(anonymityPage);
+    anonymityPage->UpdateTable();
 
     exportAction->setEnabled(false);
     disconnect(exportAction, SIGNAL(triggered()), 0, 0);

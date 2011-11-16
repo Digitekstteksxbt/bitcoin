@@ -7,12 +7,14 @@ OptionsModel::OptionsModel(CWallet *wallet, QObject *parent) :
     QAbstractListModel(parent),
     wallet(wallet),
     nDisplayUnit(BitcoinUnits::BTC),
-    bDisplayAddresses(false)
+    bDisplayAddresses(false),
+    bAnonFeatures(false)
 {
     // Read our specific settings from the wallet db
     CWalletDB walletdb(wallet->strWalletFile);
     walletdb.ReadSetting("nDisplayUnit", nDisplayUnit);
     walletdb.ReadSetting("bDisplayAddresses", bDisplayAddresses);
+    walletdb.ReadSetting("bAnonFeatures", bAnonFeatures);
 }
 
 int OptionsModel::rowCount(const QModelIndex & parent) const
@@ -46,6 +48,8 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             return QVariant(nDisplayUnit);
         case DisplayAddresses:
             return QVariant(bDisplayAddresses);
+        case AnonFeatures:
+            return QVariant(bAnonFeatures);
         default:
             return QVariant();
         }
@@ -127,6 +131,11 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
             bDisplayAddresses = value.toBool();
             walletdb.WriteSetting("bDisplayAddresses", bDisplayAddresses);
             }
+        case AnonFeatures: {
+            bAnonFeatures = value.toBool();
+            walletdb.WriteSetting("bAnonFeatures", bAnonFeatures);
+            emit anonFeaturesChanged(bAnonFeatures);
+            }
         default:
             break;
         }
@@ -159,4 +168,9 @@ int OptionsModel::getDisplayUnit()
 bool OptionsModel::getDisplayAddresses()
 {
     return bDisplayAddresses;
+}
+
+bool OptionsModel::getAnonFeatures()
+{
+  return bAnonFeatures;
 }

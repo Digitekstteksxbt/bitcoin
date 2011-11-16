@@ -58,6 +58,7 @@ public:
 private:
     QValueComboBox *unit;
     QCheckBox *display_addresses;
+    QCheckBox *anon_features;
 signals:
 
 public slots:
@@ -281,6 +282,9 @@ DisplayOptionsPage::DisplayOptionsPage(QWidget *parent):
     display_addresses = new QCheckBox(tr("Display addresses in transaction list"), this);
     layout->addWidget(display_addresses);
 
+    anon_features = new QCheckBox(tr("Display advanced anonymity features"), this);
+    layout->addWidget(anon_features);
+
     layout->addStretch();
 
     setLayout(layout);
@@ -290,4 +294,5 @@ void DisplayOptionsPage::setMapper(MonitoredDataMapper *mapper)
 {
     mapper->addMapping(unit, OptionsModel::DisplayUnit);
     mapper->addMapping(display_addresses, OptionsModel::DisplayAddresses);
+    mapper->addMapping(anon_features, OptionsModel::AnonFeatures);
 }

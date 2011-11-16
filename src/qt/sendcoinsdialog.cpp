@@ -12,6 +12,8 @@
 #include <QLocale>
 #include <QTextDocument>
 
+extern std::string sendFromAddressRestriction;
+
 SendCoinsDialog::SendCoinsDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::SendCoinsDialog),
@@ -29,6 +31,13 @@ SendCoinsDialog::SendCoinsDialog(QWidget *parent) :
 
     connect(ui->addButton, SIGNAL(clicked()), this, SLOT(addEntry()));
     connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
+
+    ui->sendFrom->setFont(GUIUtil::bitcoinAddressFont());
+}
+
+void SendCoinsDialog::setSendFromAddress(std::string address)
+{
+  ui->sendFrom->setText(QString::fromStdString(address));
 }
 
 void SendCoinsDialog::setModel(WalletModel *model)
@@ -47,12 +56,21 @@ void SendCoinsDialog::setModel(WalletModel *model)
     {
         setBalance(model->getBalance(), model->getUnconfirmedBalance());
         connect(model, SIGNAL(balanceChanged(qint64, qint64)), this, SLOT(setBalance(qint64, qint64)));
+        connect(model->getOptionsModel(), SIGNAL(anonFeaturesChanged(bool)), this, SLOT(toggleSendFrom(bool)));
+        toggleSendFrom(model->getOptionsModel()->getAnonFeatures());
     }
 }
 
 SendCoinsDialog::~SendCoinsDialog()
 {
     delete ui;
+}
+
+void SendCoinsDialog::toggleSendFrom(bool show)
+{
+    ui->labelSendFrom->setVisible(show);
+    ui->sendFrom->setVisible(show);
+    if (!show)  ui->sendFrom->clear();
 }
 
 void SendCoinsDialog::on_sendButton_clicked()
@@ -108,6 +126,7 @@ void SendCoinsDialog::on_sendButton_clicked()
         return;
     }
 
+    sendFromAddressRestriction = ((QString)ui->sendFrom->text()).toStdString();
     WalletModel::SendCoinsReturn sendstatus = model->sendCoins(recipients);
     switch(sendstatus.status)
     {
